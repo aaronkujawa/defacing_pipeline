@@ -1,0 +1,3 @@
+path_orig,path_defaced,path_gif,deface_accepted
+./data/example_input_images/IXI002-Guys-0828-T1/IXI002-Guys-0828-T1.nii.gz,./data/example_output/defaced_images/IXI002-Guys-0828-T1/IXI002-Guys-0828-T1_masked.nii.gz,./data/example_output/defaced_images_3d_visualization/IXI002-Guys-0828-T1/IXI002-Guys-0828-T1_masked.gif,y
+./data/example_input_images/IXI002-Guys-0828-T2/IXI002-Guys-0828-T2.nii.gz,./data/example_output/defaced_images/IXI002-Guys-0828-T2/IXI002-Guys-0828-T2_masked.nii.gz,./data/example_output/defaced_images_3d_visualization/IXI002-Guys-0828-T2/IXI002-Guys-0828-T2_masked.gif,y

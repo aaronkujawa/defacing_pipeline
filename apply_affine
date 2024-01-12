@@ -1,0 +1,158 @@
+#!/usr/bin/python3
+# coding: utf-8
+
+import nibabel as nib
+import numpy as np
+from numpy.linalg import inv
+import os
+import subprocess
+import sys
+import SimpleITK as sitk
+
+np.set_printoptions(precision= 7, suppress=True)
+
+
+if sys.argv[1] in ['-h', '--help']:
+    print("Help: This script applies a transform to the sform of the floating image with the aim to register it to the sform of the fixed image. It will save a warped/transformed floating image (with the same data array, but modified affine matrix (sform).\nPovide arguments in following order: \n1) input image (floating), \n2) reference image (fixed), \n3) affine (where affine@fixed=floating, i.e. resampling direction). \n4) Path to output folder for warped image and temporary files \nProvide optional arguments: \nopt) '-inv' to invert the affine matrix prior to transformation. \nopt) '-qform' if the input affine is to be interpreted as a registration between qforms of fixed and floating images. \nThe output will be the transformed (warped) floating image output_transformed = inv(affine)@floating. For visualization, the images will be shown in ITK-SNAP in the following order: 1) floating 2) transformed floating 3) fixed.")
+    sys.exit()
+
+
+# path to reg_aladin floating image
+flo_img_path = sys.argv[1]
+flo_img_name = os.path.basename(flo_img_path).replace(".nii.gz", "")
+# path to reference image
+ref_img_path = sys.argv[2]
+ref_img_name = os.path.basename(ref_img_path).replace(".nii.gz", "")
+# path to reg_aladin output affine (affine@reference=floating)
+reg_transform_path = sys.argv[3]
+# output path to store warped image and temporary files
+out_path = sys.argv[4]
+warped_path = os.path.join(out_path, flo_img_name + "_warped.nii.gz")
+
+# check mandatory input arguments:
+assert(os.path.isfile(flo_img_path)), f"{flo_img_path} is not a file"
+assert(os.path.isfile(ref_img_path)), f"{ref_img_path} is not a file"
+assert(os.path.isfile(reg_transform_path)), f"{reg_transform_path} is not a file"
+assert(os.path.isdir(out_path)), f"{out_path} is not a folder directory."
+
+# load reference and floating image
+ref_img_nii = nib.load(ref_img_path)
+flo_img_nii = nib.load(flo_img_path)
+
+# this function is required in case the transform text file is in the ITK format
+def read_slicer_transform_as_forward_in_RAS(txtfile_path):
+    sitk_affine_transform = sitk.AffineTransform(sitk.ReadTransform(txtfile_path))
+    
+    # the transform file contains rotation parameters (3x3 matrix A), translation parameters (t) and a center (c)
+    # The transform is described by the following formula: T(x) = A(x-c) + t + c
+    
+    # These parameters can be combined into a single 4x4 affine matrix according to the following formula: 
+    # more details here: https://simpleitk.org/SPIE2019_COURSE/01_spatial_transformations.html
+    
+    A = np.array(sitk_affine_transform.GetMatrix()).reshape([3,3])
+    
+    t = np.array(sitk_affine_transform.GetTranslation())
+    c = np.array(sitk_affine_transform.GetCenter())
+    
+    # combine A, c and t to obtain the translation parameters of the affine matrix 
+    # according to T(x) = A(x-c) + t + c = A(x) - A(c)+t+c, where the second term 
+    # describes the complete translation
+    t_aff = -A@c + t + c
+    
+    # assemble 4x4 affine matrix
+    mat = np.zeros([4,4])
+    mat[0:3, 0:3] = A
+    mat[0:3, 3] = t_aff
+    mat[3,3] = 1
+    
+    # convert matrix into RAS space by applying RAS_to_LPS from both sides
+    RAS_to_LPS = np.array([[-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+    mat_RAS = RAS_to_LPS@mat@RAS_to_LPS
+    
+    # return the inverse since ITK format is in resampling direction, but want to return forward transform 
+    # direction
+    return inv(mat_RAS)
+
+# check if the transform file is in ITK format or not and choose textfile loading function accordingly
+with open(reg_transform_path, "r") as txtfile:
+    firstline = txtfile.readline()
+
+transform_load_fun = read_slicer_transform_as_forward_in_RAS if "#Insight Transform File" in firstline else np.loadtxt
+reg_transform = transform_load_fun(reg_transform_path)
+
+
+if len(sys.argv)>5:
+    if "-inv" in sys.argv:
+        print("-inv argument was passed: invert the input affine (probably because the input affine has forward transform direction instead of resampling direction).")
+        reg_transform = inv(reg_transform)
+    if "-qform" in sys.argv:
+    	print("-qform argument was passed: interpret input affine as registering between qforms. ")
+    	Qref = ref_img_nii.header.get_qform()
+    	Sref = ref_img_nii.header.get_sform()
+    	Qflo = flo_img_nii.header.get_qform()
+    	Sflo = flo_img_nii.header.get_sform()
+    	
+    	# the corresponding sform transform is given by:
+    	reg_transform = Sflo@inv(Qflo)@reg_transform@Qref@inv(Sref)
+    	
+    	# save the transformation between sforms
+    	np.savetxt(os.path.join(out_path, flo_img_name + '_sform_transform.txt'), reg_transform)		
+	
+flo_img_nii_affine = flo_img_nii.affine
+
+# since reg_transform has resampling direction, the inverse is needed to forward transform the floating image
+warped_affine = inv(reg_transform)@flo_img_nii_affine
+
+def print_qform_and_sform(nii):
+    print("---")
+    print(f"qform code = {nii.header['qform_code']}")
+    print(f"{nii.get_qform()}")
+    print(f"sform code = {nii.header['sform_code']}")
+    print(f"{nii.get_sform()}")
+    print("-------------------")
+
+print("ref_img_nii:")
+print_qform_and_sform(ref_img_nii)
+
+print("flo_img_nii:")
+print_qform_and_sform(flo_img_nii)
+
+print(f"reg_transform = \n{reg_transform}")
+print(f"inv(reg_transform) = \n{inv(reg_transform)}")
+print(f"warped_affine = inv(reg_transform)@flo_img_nii_affine =\n{warped_affine}")
+print("-------------------")
+
+# save warped image
+warped_img_nii = nib.Nifti1Image(flo_img_nii.get_fdata(), warped_affine,) # header=flo_img_nii.header)
+warped_img_nii.header['qform_code'] = 0
+nib.save(warped_img_nii, warped_path)
+
+# save sform copies of fixed and floating image
+ref_img_nii.header['qform_code'] = 0
+flo_img_nii.header['qform_code'] = 0
+sform_ref_path = os.path.join(out_path, ref_img_name + '_sform_ref.nii.gz')
+sform_flo_path = os.path.join(out_path, flo_img_name + '_sform_flo.nii.gz')
+nib.save(ref_img_nii, sform_ref_path)
+nib.save(flo_img_nii, sform_flo_path)
+
+# print qforms and sforms of all images
+new_ref_img_nii = nib.load(sform_ref_path)
+new_flo_img_nii = nib.load(sform_flo_path)
+
+print("new_ref_img_nii:")
+print_qform_and_sform(new_ref_img_nii)
+
+print("new_flo_img_nii:")
+print_qform_and_sform(new_flo_img_nii)
+
+print("warped_img_nii:")
+print_qform_and_sform(warped_img_nii)
+
+
+# run itk-snap
+if not "-noshow" in sys.argv:
+    print("Run itk-snap and load and initial floating, registered floating, and reference image. Caution: itk-snap (and 3D Slicer) will render qform, if qform_code!=0, whereas nibabel and reg_aladin work with sform if sform_code!=0 .")
+    os.system("itksnap -g " + sform_flo_path + " -o " + warped_path + " " + sform_ref_path)
+
+    "itksnap -g " + sform_flo_path + " -o " + warped_path + " " + sform_ref_path
+
