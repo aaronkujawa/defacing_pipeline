@@ -19,7 +19,8 @@ in the template and the input image. This is done in 3D Slicer.
 The code was tested on Ubuntu 20.04 with Python 3.11
 1. BRAINSFit and BRAINSResample binaries from [BRAINSTools](https://github.com/BRAINSia/BRAINSTools) (Note: The binaries
 are dependent on shared libraries that need to be installed as well) (The scripts were tested with BRAINSFit version: 5.4.0 and 
-BRAINSResample version: 5.7.0)
+BRAINSResample version: 5.7.0). See [below](#extracting-brainsfit-and-brainsresample-binaries-and-shared-libraries-from-3d-slicer) for instructions on how to extract the binaries and shared libraries from
+a 3D Slicer installation.
 2. [3D Slicer](https://www.slicer.org/) (tested with version 5.2) with the Jupyter Notebook extension installed to create 3D renderings of the defaced images
 and to perform landmark registration for failed cases
 3. [ITK-SNAP](http://www.itksnap.org) and [MPV](https://mpv.io/) for viewing of the 3D renderings
@@ -111,5 +112,23 @@ Running the first notebook again with the manual transform should produce a succ
 Make sure to delete previous outputs first, because the notebook will not overwrite existing files.
 
 
+## Extracting BRAINSFit and BRAINSResample binaries and shared libraries from 3D Slicer
+Building BRAINSTools from source can be challenging. An easier way to obtain the binaries and shared libraries is to 
+extract them from a 3D Slicer installation. The instructions for Ubuntu are as follows:
+1. Locate the 3D Slicer directory, for example `/home/user/3D_Slicer-5.6.2-linux-amd64`
+2. Copy the binaries, `<Slicer_dir>/lib/Slicer-<version>/cli-modules/BRAINSFit` and 
+`<Slicer_dir>/lib/Slicer-<version>/cli-modules/BRAINSResample` to the [BRAINSTools](BRAINSTools) directory, overwriting
+the existing binaries.
+3. Now the Slicer paths that contain the shared libraries need to be registered in the system. This can be done by
+creating a new `.conf` file (for example `brainsfit.conf`) in `/etc/ld.so.conf.d/` with the following paths as 
+content:
+```                                                          
+<Slicer_dir>/lib/Slicer-<version>/cli-modules
+<Slicer_dir>/lib/Slicer-<version>
+<Slicer_dir>/lib
+```
+Make sure to replace `<Slicer_dir>` and `<version>` with the correct values.
+4. Run `sudo ldconfig` to update the shared library paths.
+5. Now the BRAINSFit and BRAINSResample binaries should be able to find the shared libraries and run successfully.
 
 
