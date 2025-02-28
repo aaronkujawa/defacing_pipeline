@@ -117,8 +117,8 @@ Building BRAINSTools from source can be challenging. An easier way to obtain the
 extract them from a 3D Slicer installation. The instructions for Ubuntu are as follows:
 1. Locate the 3D Slicer directory, for example `/home/user/3D_Slicer-5.6.2-linux-amd64`
 2. Copy the binaries, `<Slicer_dir>/lib/Slicer-<version>/cli-modules/BRAINSFit` and 
-`<Slicer_dir>/lib/Slicer-<version>/cli-modules/BRAINSResample` to the [BRAINSTools](BRAINSTools) directory, overwriting
-the existing binaries.
+`<Slicer_dir>/lib/Slicer-<version>/cli-modules/BRAINSResample` to the [BRAINSTools](BRAINSTools) directory contained in 
+the defacing_pipeline repository, overwriting the existing binaries.
 3. Now the Slicer paths that contain the shared libraries need to be registered in the system. This can be done by
 creating a new `.conf` file (for example `brainsfit.conf`) in `/etc/ld.so.conf.d/` with the following paths as 
 content:
